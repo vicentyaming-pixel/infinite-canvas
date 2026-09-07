@@ -1,13 +1,13 @@
 import axios from "axios";
 
 import i18n from "@/i18n";
-import { buildApiUrl, resolveModelRequestConfig, resolveModelScript, withLocalProxy, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
+import { buildApiUrl, resolveModelRequestConfig, resolveModelScript, useConfigStore, withLocalProxy, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
 import { normalizePluginImages, runModelPlugin } from "./model-plugin";
 import { nanoid } from "nanoid";
 import { dataUrlToFile } from "@/lib/image-utils";
 import { buildImageReferencePromptText } from "@/lib/image-reference-prompt";
 import { imageToDataUrl } from "@/services/image-storage";
-import { imageSizePresets, inferMediaScale } from "@/lib/media-size";
+import { imageSizePresets, inferMediaRatio, inferMediaScale } from "@/lib/media-size";
 import type { ReferenceImage } from "@/types/image";
 
 const apiText = (key: string, options?: Record<string, unknown>) => i18n.t(`apiErrors.${key}`, options);
@@ -77,6 +77,17 @@ type ImageApiResponse = {
     code?: number;
     msg?: string;
 };
+type ReapiImageTask = {
+    id?: string;
+    status?: string;
+    output?: { image_urls?: unknown };
+    error?: unknown;
+};
+type ReapiReferenceUpload = {
+    objectName: string;
+    url: string;
+    expiresIn: number;
+};
 type GeminiPart = {
     text?: string;
     inlineData?: { mimeType?: string; data?: string };
@@ -116,6 +127,8 @@ const IMAGE_MAX_PIXELS = 8294400;
 const IMAGE_MAX_EDGE = 3840;
 const IMAGE_MAX_RATIO = 3;
 const IMAGE_OUTPUT_FORMAT = "png";
+const REAPI_POLL_INTERVAL_MS = 1500;
+const REAPI_TASK_TIMEOUT_MS = 300000;
 
 const GEMINI_SUPPORTED_RATIOS = ["1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9"];
 const GEMINI_IMAGE_SIZE_BY_QUALITY: Record<string, string> = { low: "1K", medium: "2K", high: "4K", standard: "1K", hd: "2K" };
@@ -273,6 +286,136 @@ function parseImagePayload(payload: ImageApiResponse) {
     }
 
     return images;
+}
+
+function isReapiProvider(config: Pick<AiConfig, "baseUrl">) {
+    try {
+        const hostname = new URL(config.baseUrl).hostname.toLowerCase();
+        return hostname === "reapi.ai" || hostname.endsWith(".reapi.ai");
+    } catch {
+        return false;
+    }
+}
+
+function reapiTaskImages(task: ReapiImageTask): ImageApiResponse | null {
+    const imageUrls = Array.isArray(task.output?.image_urls)
+        ? task.output.image_urls.filter((value): value is string => typeof value === "string" && Boolean(value))
+        : [];
+    return imageUrls.length ? { data: imageUrls.map((url) => ({ url })) } : null;
+}
+
+function reapiImageParams(config: AiConfig, n: number) {
+    const size = inferMediaRatio(config.size, "1:1");
+    const resolution = inferMediaScale(config.size);
+    return {
+        model: config.model,
+        n,
+        ...(size !== "auto" ? { size } : {}),
+        ...(resolution !== "auto" ? { resolution } : {}),
+    };
+}
+
+function reapiReferenceGatewayUrl(objectName = "") {
+    const webdavUrl = useConfigStore.getState().webdav.url;
+    const url = new URL(webdavUrl || "/api/webdav", window.location.origin);
+    const markerIndex = url.pathname.indexOf("/api/webdav");
+    const prefix = markerIndex >= 0 ? url.pathname.slice(0, markerIndex) : "";
+    url.pathname = `${prefix}/api/reapi-inputs/${objectName}`.replace(/\/{2,}/g, "/");
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+}
+
+function encodeBasicAuth(value: string) {
+    const bytes = new TextEncoder().encode(value);
+    let binary = "";
+    bytes.forEach((byte) => {
+        binary += String.fromCharCode(byte);
+    });
+    return btoa(binary);
+}
+
+function reapiReferenceHeaders(contentType?: string) {
+    const webdav = useConfigStore.getState().webdav;
+    if (!webdav.password) throw new Error(reapiText("storageRequired"));
+    return {
+        Authorization: `Basic ${encodeBasicAuth(`${webdav.username}:${webdav.password}`)}`,
+        ...(contentType ? { "Content-Type": contentType } : {}),
+    };
+}
+
+function reapiText(key: "storageRequired" | "uploadFailed" | "invalidUrl") {
+    return i18n.t(`reapiReferenceErrors.${key}`);
+}
+
+async function uploadReapiReference(image: ReferenceImage, signal?: AbortSignal): Promise<ReapiReferenceUpload | { url: string }> {
+    const publicUrl = [image.url, image.dataUrl].find((value) => /^https:\/\//i.test(value || ""));
+    if (publicUrl) return { url: publicUrl };
+
+    const dataUrl = await imageToDataUrl(image, { signal });
+    const file = dataUrlToFile({ ...image, dataUrl });
+    const response = await fetch(reapiReferenceGatewayUrl(), {
+        method: "POST",
+        headers: reapiReferenceHeaders(file.type),
+        body: file,
+        signal,
+    });
+    if (!response.ok) throw new Error((await response.text().catch(() => "")) || reapiText("uploadFailed"));
+    const upload = (await response.json()) as ReapiReferenceUpload;
+    if (!upload.objectName || !/^https:\/\//i.test(upload.url)) throw new Error(reapiText("invalidUrl"));
+    return upload;
+}
+
+async function deleteReapiReference(upload: ReapiReferenceUpload) {
+    await fetch(reapiReferenceGatewayUrl(encodeURIComponent(upload.objectName)), {
+        method: "DELETE",
+        headers: reapiReferenceHeaders(),
+    }).catch(() => undefined);
+}
+
+async function waitForReapiImageTask(config: AiConfig, payload: ImageApiResponse, options?: RequestOptions) {
+    if (!isReapiProvider(config)) return payload;
+    let task = payload as ReapiImageTask;
+    if (!task.id || !task.status) return payload;
+    const taskId = task.id;
+    const startedAt = Date.now();
+
+    while (true) {
+        if (task.status === "completed") {
+            return reapiTaskImages(task) || payload;
+        }
+        if (task.status === "failed" || task.status === "cancelled") {
+            throw new Error(readApiErrorMessage(task.error) || apiText("requestFailed"));
+        }
+        if (Date.now() - startedAt >= REAPI_TASK_TIMEOUT_MS) {
+            throw new Error(apiText("imageTaskTimeout"));
+        }
+
+        await waitForDelay(REAPI_POLL_INTERVAL_MS, options?.signal);
+        const response = await axios.get<ReapiImageTask>(aiApiUrl(config, `/tasks/${encodeURIComponent(taskId)}`), {
+            headers: aiHeaders(config),
+            signal: options?.signal,
+        });
+        task = response.data;
+    }
+}
+
+function waitForDelay(milliseconds: number, signal?: AbortSignal) {
+    return new Promise<void>((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(signal.reason || new DOMException("Aborted", "AbortError"));
+            return;
+        }
+        const onAbort = () => {
+            window.clearTimeout(timer);
+            reject(signal?.reason || new DOMException("Aborted", "AbortError"));
+        };
+        const timer = window.setTimeout(() => {
+            signal?.removeEventListener("abort", onAbort);
+            resolve();
+        }, milliseconds);
+        signal?.addEventListener("abort", onAbort, { once: true });
+    });
 }
 
 function readApiErrorMessage(value: unknown): string {
@@ -754,25 +897,28 @@ export async function requestGeneration(config: AiConfig, prompt: string, option
     const requestSize = resolveRequestSize(quality, config.size);
     const background = normalizeBackground(config.background);
     try {
+        const body = isReapiProvider(requestConfig)
+            ? { ...reapiImageParams(requestConfig, n), prompt: withSystemPrompt(requestConfig, prompt) }
+            : {
+                  model: requestConfig.model,
+                  prompt: withSystemPrompt(requestConfig, prompt),
+                  n,
+                  ...(quality ? { quality } : {}),
+                  ...(requestSize ? { size: requestSize } : {}),
+                  ...(background ? { background } : {}),
+                  // gpt-image models reject response_format; they always return b64.
+                  ...(/gpt-image/.test(requestConfig.model) ? {} : { response_format: "b64_json" }),
+                  output_format: IMAGE_OUTPUT_FORMAT,
+              };
         const response = await axios.post<ImageApiResponse>(
             aiApiUrl(requestConfig, "/images/generations"),
-            {
-                model: requestConfig.model,
-                prompt: withSystemPrompt(requestConfig, prompt),
-                n,
-                ...(quality ? { quality } : {}),
-                ...(requestSize ? { size: requestSize } : {}),
-                ...(background ? { background } : {}),
-                // gpt-image models reject response_format; they always return b64.
-                ...(/gpt-image/.test(requestConfig.model) ? {} : { response_format: "b64_json" }),
-                output_format: IMAGE_OUTPUT_FORMAT,
-            },
+            body,
             {
                 headers: aiHeaders(requestConfig, "application/json"),
                 signal: options?.signal,
             },
         );
-        const images = await parseImagePayload(response.data);
+        const images = parseImagePayload(await waitForReapiImageTask(requestConfig, response.data, options));
         return images;
     } catch (error) {
         throw new Error(readAxiosError(error, apiText("requestFailed")));
@@ -815,6 +961,32 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
     const quality = normalizeQuality(config.quality);
     const requestSize = resolveRequestSize(quality, config.size);
     const background = normalizeBackground(config.background);
+    if (isReapiProvider(requestConfig)) {
+        const uploads: ReapiReferenceUpload[] = [];
+        try {
+            const referenceUrls = await Promise.all(
+                references.map(async (image) => {
+                    const upload = await uploadReapiReference(image, options?.signal);
+                    if ("objectName" in upload) uploads.push(upload);
+                    return upload.url;
+                }),
+            );
+            const response = await axios.post<ImageApiResponse>(
+                aiApiUrl(requestConfig, "/images/generations"),
+                {
+                    ...reapiImageParams(requestConfig, n),
+                    prompt: withSystemPrompt(requestConfig, requestPrompt),
+                    image_urls: referenceUrls,
+                },
+                { headers: aiHeaders(requestConfig, "application/json"), signal: options?.signal },
+            );
+            return parseImagePayload(await waitForReapiImageTask(requestConfig, response.data, options));
+        } catch (error) {
+            throw new Error(readAxiosError(error, apiText("requestFailed")));
+        } finally {
+            await Promise.all(uploads.map(deleteReapiReference));
+        }
+    }
     const formData = new FormData();
     formData.set("model", requestConfig.model);
     formData.set("prompt", withSystemPrompt(requestConfig, requestPrompt));

@@ -3,6 +3,7 @@
 ## Unreleased
 
 + [新增] Docker 镜像内置受令牌保护的 S3 兼容对象存储网关，可通过现有 WebDAV 同步功能接入雨云 OSS。
++ [新增] OpenAI 兼容生图请求支持 ReAPI 异步任务轮询，可直接使用 Nano Banana 与 GPT Image 模型；本地参考图会经雨云 OSS 短期签名地址安全传入图生图任务。
 
 ## v0.18.0 - 2026-09-07
 

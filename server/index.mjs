@@ -1,9 +1,10 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { existsSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream/promises";
 
-import { GetObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import express from "express";
 
 const port = Number(process.env.PORT || 3000);
@@ -18,6 +19,14 @@ const storageConfig = {
     secretAccessKey: process.env.S3_SECRET_KEY || "",
 };
 const storageConfigured = Boolean(storageToken && Object.values(storageConfig).every(Boolean));
+const reapiInputMaxBytes = 20 * 1024 * 1024;
+const reapiInputUrlTtlSeconds = 15 * 60;
+const reapiInputMimeExtensions = new Map([
+    ["image/jpeg", "jpg"],
+    ["image/png", "png"],
+    ["image/webp", "webp"],
+    ["image/gif", "gif"],
+]);
 const s3 = storageConfigured
     ? new S3Client({
           endpoint: storageConfig.endpoint,
@@ -36,6 +45,47 @@ const app = express();
 
 app.get("/healthz", (_request, response) => {
     response.json({ ok: true, storageConfigured });
+});
+
+app.use("/api/reapi-inputs", async (request, response) => {
+    setCorsHeaders(request, response);
+    if (request.method === "OPTIONS") return response.sendStatus(204);
+    if (!storageConfigured || !s3) return response.status(503).send("Object storage is not configured");
+    if (!isAuthorized(request.headers.authorization, storageToken)) {
+        response.setHeader("WWW-Authenticate", 'Basic realm="infinite-canvas-storage"');
+        return response.status(401).send("Unauthorized");
+    }
+
+    try {
+        if (request.method === "POST" && request.path === "/") {
+            const mimeType = String(request.headers["content-type"] || "").split(";", 1)[0].toLowerCase();
+            const extension = reapiInputMimeExtensions.get(mimeType);
+            const length = contentLength(request.headers["content-length"]);
+            if (!extension) return response.status(415).send("Only JPEG, PNG, WebP, and GIF images are supported");
+            if (!length) return response.status(411).send("Content-Length is required");
+            if (length > reapiInputMaxBytes) return response.status(413).send("Image is too large");
+
+            const objectName = `${randomUUID()}.${extension}`;
+            const key = `reapi-inputs/${objectName}`;
+            await s3.send(new PutObjectCommand({ Bucket: storageConfig.bucket, Key: key, Body: request, ContentLength: length, ContentType: mimeType }));
+            const url = await getSignedUrl(s3, new GetObjectCommand({ Bucket: storageConfig.bucket, Key: key }), { expiresIn: reapiInputUrlTtlSeconds });
+            return response.status(201).json({ objectName, url, expiresIn: reapiInputUrlTtlSeconds });
+        }
+
+        if (request.method === "DELETE") {
+            const objectName = request.path.replace(/^\//, "");
+            if (!/^[0-9a-f-]{36}\.(?:jpg|png|webp|gif)$/.test(objectName)) return response.status(400).send("Invalid object name");
+            await s3.send(new DeleteObjectCommand({ Bucket: storageConfig.bucket, Key: `reapi-inputs/${objectName}` }));
+            return response.sendStatus(204);
+        }
+
+        response.setHeader("Allow", "OPTIONS, POST, DELETE");
+        return response.sendStatus(405);
+    } catch (error) {
+        console.error("ReAPI reference upload failed", { method: request.method, status: error?.$metadata?.httpStatusCode || 502, code: error?.name || "UnknownError" });
+        if (!response.headersSent) response.status(502).send("Object storage request failed");
+        else response.destroy();
+    }
 });
 
 app.use("/api/webdav", async (request, response) => {
@@ -121,7 +171,7 @@ function isAuthorized(header, expectedToken) {
 function setCorsHeaders(request, response) {
     response.setHeader("Access-Control-Allow-Origin", request.headers.origin || "*");
     response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Depth");
-    response.setHeader("Access-Control-Allow-Methods", "OPTIONS, PROPFIND, MKCOL, GET, PUT");
+    response.setHeader("Access-Control-Allow-Methods", "OPTIONS, PROPFIND, MKCOL, GET, PUT, POST, DELETE");
     response.setHeader("Vary", "Origin");
 }
 
