@@ -1,0 +1,10 @@
+{
+  "name": "infinite-canvas-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.883.0",
+    "express": "^5.1.0"
+  }
+}

@@ -9,12 +9,23 @@ COPY CHANGELOG.md /app/CHANGELOG.md
 COPY web ./
 RUN bun run build
 
-# 运行镜像：只启动静态前端，AI 请求由浏览器前台直连用户自己的接口。
-FROM nginx:1.27-alpine
+# 安装可选的对象存储网关依赖。
+FROM node:22-alpine AS server-deps
 
-COPY --from=web-build /app/web/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY web/docker-entrypoint.sh /docker-entrypoint.d/40-runtime-config.sh
-RUN chmod +x /docker-entrypoint.d/40-runtime-config.sh
+WORKDIR /app/server
+COPY server/package.json server/package-lock.json ./
+RUN npm ci --omit=dev
+
+# 运行镜像：Node 同时提供静态前端与 S3 兼容对象存储网关。
+FROM node:22-alpine
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=web-build /app/web/dist ./web/dist
+COPY --from=server-deps /app/server/node_modules ./server/node_modules
+COPY server/package.json server/index.mjs ./server/
 
 EXPOSE 3000
+
+CMD ["node", "server/index.mjs"]

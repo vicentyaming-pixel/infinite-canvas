@@ -1,0 +1,43 @@
+---
+title: 雨云 OSS 同步
+description: 通过服务端 S3 网关把画布、素材和生成记录同步到雨云对象存储
+---
+
+# 雨云 OSS 同步
+
+雨云对象存储兼容 S3。项目镜像内置了一个受令牌保护的 S3 → WebDAV 网关，因此前端可以直接复用「WebDAV 同步」功能，把画布、我的素材、生成记录和本地媒体文件同步到雨云 OSS。
+
+Access Key 和 Secret Key 只放在容器环境变量中，不要写入前端代码、Dockerfile、Git 仓库或公开截图。
+
+## 容器环境变量
+
+```env
+S3_ENDPOINT=https://你的雨云-API-端点
+S3_REGION=rainyun
+S3_BUCKET=你的存储桶名称
+S3_ACCESS_KEY=你的-Access-Key
+S3_SECRET_KEY=你的-Secret-Key
+STORAGE_API_TOKEN=另行生成的私密同步令牌
+```
+
+`S3_ENDPOINT` 填雨云控制台显示的 API 端点，不要把桶名拼在后面。`STORAGE_API_TOKEN` 不是雨云密钥；它用于保护部署后的同步接口，应使用独立随机值。
+
+容器仍监听 `3000` 端口。部署完成后访问 `/healthz`，返回的 `storageConfigured` 应为 `true`。
+
+## 前端配置
+
+打开「配置 → WebDAV 同步」，填写：
+
+- WebDAV 地址：`https://你的站点域名/api/webdav`
+- 用户名：任意非空名称，例如 `canvas`
+- 密码：与服务端 `STORAGE_API_TOKEN` 完全相同
+- 远程目录：`infinite-canvas`
+
+先点「测试连接」，成功后再执行同步。首次同步会在桶内创建 `infinite-canvas/` 前缀下的清单和媒体对象。
+
+## 安全与数据说明
+
+- 必须通过 HTTPS 使用站点，否则 Basic Auth 中的同步令牌可能在传输中泄露。
+- 不要把雨云 Access Key / Secret Key 填进浏览器的 WebDAV 用户名或密码字段。
+- 当前画布仍先保存在浏览器 IndexedDB；OSS 是手动同步与跨设备合并目标，不是实时协同数据库。
+- 如果雨云控制台提示对象存储处于测试阶段，请不要把它作为重要素材的唯一副本。
