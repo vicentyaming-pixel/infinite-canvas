@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-labelledby="title desc">
+  <title id="title">医美案例质量审查</title>
+  <desc id="desc">身份、光线和真实皮肤检查示意</desc>
+  <rect width="800" height="600" fill="#eff6ff"/>
+  <rect x="70" y="60" width="660" height="480" rx="30" fill="#f8fafc" stroke="#93c5fd" stroke-width="4"/>
+  <circle cx="340" cy="250" r="92" fill="#dbeafe"/>
+  <path d="M210 490c14-96 60-148 130-148s116 52 130 148" fill="#dbeafe"/>
+  <circle cx="515" cy="330" r="92" fill="none" stroke="#2563eb" stroke-width="12"/>
+  <path d="m580 395 76 76" stroke="#2563eb" stroke-width="16" stroke-linecap="round"/>
+  <path d="m477 330 25 25 54-62" fill="none" stroke="#16a34a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="110" y="112" fill="#1e3a8a" font-family="system-ui, sans-serif" font-size="30" font-weight="650">案例质量审查</text>
+  <text x="110" y="510" fill="#1d4ed8" font-family="system-ui, sans-serif" font-size="22">身份一致 · 同条件 · 去 AI 感</text>
+</svg>

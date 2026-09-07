@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-labelledby="title desc">
+  <title id="title">医美术后标准照</title>
+  <desc id="desc">自然改善和身份一致性示意</desc>
+  <rect width="800" height="600" fill="#ecfdf5"/>
+  <rect x="70" y="60" width="660" height="480" rx="30" fill="#f8faf9" stroke="#6ee7b7" stroke-width="4"/>
+  <circle cx="400" cy="235" r="92" fill="#d1fae5"/>
+  <path d="M258 490c14-102 64-158 142-158s128 56 142 158" fill="#d1fae5"/>
+  <path d="M367 240c10 8 20 8 30 0M403 240c10 8 20 8 30 0M378 282c15 10 29 10 44 0" fill="none" stroke="#047857" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="400" cy="235" r="122" fill="none" stroke="#10b981" stroke-width="3" stroke-dasharray="8 12"/>
+  <text x="110" y="112" fill="#065f46" font-family="system-ui, sans-serif" font-size="30" font-weight="650">术后标准照</text>
+  <text x="110" y="510" fill="#047857" font-family="system-ui, sans-serif" font-size="22">只改治疗区 · 保守幅度 · 真实皮肤</text>
+</svg>

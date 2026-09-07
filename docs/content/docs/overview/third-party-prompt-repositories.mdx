@@ -1,20 +1,21 @@
 ---
-title: Third-party Prompt Sources
-description: The seven third-party prompt sources built into the application
+title: Medical Aesthetic Prompt Library
+description: Built-in prompts for consistent, natural-looking medical aesthetic case simulations
 ---
 
-# Third-party Prompt Sources
+# Medical Aesthetic Prompt Library
 
-The application includes the following seven sources. Prompt data is read as standard JSON from the [Image Prompts](https://github.com/yukkcat/image-prompts) registry; the original project links identify the upstream content.
+The application ships with four local prompt collections instead of the previous general-purpose third-party prompt feeds:
 
-| Source | Original project |
-| --- | --- |
-| Banana Prompt Quicker | https://glidea.github.io/banana-prompt-quicker/ |
-| DavidWu GPT Image 2 | https://github.com/davidwuw0811-boop/awesome-gpt-image2-prompts |
-| Freestylefly GPT Image 2 | https://github.com/freestylefly/awesome-gpt-image-2 |
-| Awesome GPT Image | https://github.com/ZeroLu/awesome-gpt-image |
-| Awesome GPT-4o | https://github.com/ImgEdify/Awesome-GPT4o-Image-Prompts |
-| YouMind GPT Image 2 | https://github.com/YouMind-OpenLab/awesome-gpt-image-2 |
-| YouMind Nano Banana Pro | https://github.com/YouMind-OpenLab/awesome-nano-banana-pro-prompts |
+| Collection                     | Purpose                                                                                                        |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Pre-treatment standard photos  | Normalize angle, framing, lighting, expression, and background without changing anatomy                        |
+| Post-treatment standard photos | Apply only a named, conservative treatment change while locking identity and capture conditions                |
+| Post-treatment everyday photos | Reuse the same identity and treatment result in believable phone-photo situations without extra beautification |
+| Quality review                 | Repair identity drift, mismatched capture conditions, plastic skin, and exaggerated outcomes                   |
 
-Each built-in source can be enabled and refreshed independently. Settings also supports custom standard JSON sources and scheduled bulk refreshes; a failed refresh keeps the source's last successful cache available.
+The prompts preserve pores, fine lines, minor asymmetry, age, skin tone, and identifying marks. They explicitly reject beauty filters, skin smoothing, face slimming, favorable relighting, and changes outside the treatment area.
+
+These images are simulations, not clinical records or outcome guarantees. Use only authorized portraits, retain the original files, disclose material edits, and label simulated outcomes clearly when publishing them. Real before/after documentation should follow a clinic's standardized photography protocol and applicable advertising rules.
+
+Each collection is bundled as standard JSON under `web/public/prompts`, so it works locally without relying on an external prompt registry. Settings still supports optional custom JSON sources.

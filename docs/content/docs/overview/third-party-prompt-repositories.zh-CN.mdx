@@ -1,20 +1,21 @@
 ---
-title: 第三方提示词来源
-description: 当前内置的 7 个第三方提示词来源
+title: 医美案例提示词库
+description: 用于制作自然、身份一致的医美案例模拟图
 ---
 
-# 第三方提示词来源
+# 医美案例提示词库
 
-应用内置以下 7 个来源。提示词数据统一从 [Image Prompts](https://github.com/yukkcat/image-prompts) 的标准 JSON 读取，原项目地址用于查看来源内容。
+应用不再加载原来的通用第三方提示词，改为内置四组本地医美案例提示词：
 
-| 来源 | 原项目 |
-| --- | --- |
-| Banana Prompt Quicker | https://glidea.github.io/banana-prompt-quicker/ |
-| DavidWu GPT Image 2 | https://github.com/davidwuw0811-boop/awesome-gpt-image2-prompts |
-| Freestylefly GPT Image 2 | https://github.com/freestylefly/awesome-gpt-image-2 |
-| Awesome GPT Image | https://github.com/ZeroLu/awesome-gpt-image |
-| Awesome GPT-4o | https://github.com/ImgEdify/Awesome-GPT4o-Image-Prompts |
-| YouMind GPT Image 2 | https://github.com/YouMind-OpenLab/awesome-gpt-image-2 |
-| YouMind Nano Banana Pro | https://github.com/YouMind-OpenLab/awesome-nano-banana-pro-prompts |
+| 分类                    | 用途                                                         |
+| ----------------------- | ------------------------------------------------------------ |
+| 医美案例 · 术前标准照   | 统一角度、构图、光线、表情和背景，不改变原有解剖特征         |
+| 医美案例 · 术后标准照   | 只改变明确的治疗区域，锁定身份与术前拍摄条件                 |
+| 医美案例 · 术后素人照   | 把同一身份和同一治疗结果放进可信的手机生活照场景，不二次美颜 |
+| 医美案例 · 质检与一致性 | 修复换脸、前后拍摄条件不一致、塑料皮肤和过度疗效             |
 
-每个内置来源都可独立启用和拉取。配置页还支持添加自定义标准 JSON 来源，以及按周期批量更新；拉取失败时继续使用该来源上一次成功缓存。
+提示词默认保留毛孔、细纹、轻微不对称、年龄、肤色、痣与疤痕，明确禁止美颜滤镜、磨皮、瘦脸、讨好式重打光和治疗区域之外的改变。
+
+这些图片属于效果模拟，不是真实临床记录，也不构成疗效承诺。只使用获得明确授权的肖像，保留原始文件，披露实质编辑；发布模拟术后效果时应显著标注“AI 效果模拟 / 非真实疗效”。真实术前术后记录应遵循机构的标准化临床摄影流程与当地广告规范。
+
+四组提示词以标准 JSON 内置在 `web/public/prompts`，本地运行时不依赖外部提示词仓库。配置页仍可按需添加自定义 JSON 来源。
