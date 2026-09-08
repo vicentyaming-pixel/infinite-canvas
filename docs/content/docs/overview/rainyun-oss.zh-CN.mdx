@@ -24,6 +24,34 @@ STORAGE_API_TOKEN=另行生成的私密同步令牌
 
 容器仍监听 `3000` 端口。部署完成后访问 `/healthz`，返回的 `storageConfigured` 应为 `true`。
 
+## macOS 本地一键启动
+
+本地运行服务端网关时，不要使用 `bun run dev` 或 Vite。开发服务器只负责前端，会把 `/api/webdav` 当成页面路由返回，导致 WebDAV 测试失败。
+
+首次配置：
+
+```bash
+cp scripts/rainyun.env.example .env.rainyun.local
+chmod 600 .env.rainyun.local
+```
+
+编辑 `.env.rainyun.local` 填入雨云参数后运行：
+
+```bash
+./scripts/local-rainyun.sh start
+```
+
+脚本会构建前端、启动带 WebDAV 网关的正式 Node 服务、启动 ReAPI 本地代理，并在 macOS Chrome 打开配置页。常用维护命令：
+
+不想输入命令时，也可以在 Finder 里直接双击仓库根目录的 `start-infinite-canvas.command`。
+
+```bash
+./scripts/local-rainyun.sh status
+./scripts/local-rainyun.sh stop
+```
+
+密钥文件已被 `.gitignore` 排除，脚本还会强制要求文件权限为 `600`。PID 和日志保存在同样不会提交的 `.local-run/` 目录。
+
 ## 前端配置
 
 打开「配置 → WebDAV 同步」，填写：

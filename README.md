@@ -91,7 +91,7 @@
 - Codex App 插件：提供 Codex app 插件，安装后会自动注册 MCP 并尝试拉起本地 Agent。
 - 插件系统：支持通过 URL 动态安装 / 启用 / 更新 / 卸载远程节点插件，并提供 TypeScript SDK 自行开发画布节点插件。
 - 自定义接口调用：可自定义生图 / 视频接口的调用方式，灵活适配各类中转站与自建服务。
-- 提示词库：内置 7 个开源提示词来源并支持自定义标准 JSON 来源，由浏览器前端直连并缓存到 IndexedDB。
+- 提示词库：内置术前标准照、术后标准照、术后素人照和真实感质检四组医美案例模板，并支持自定义标准 JSON 来源。
 
 完整功能说明见 [功能介绍](docs/content/docs/overview/features.mdx)。
 
@@ -120,6 +120,16 @@ docker compose up -d
 ```
 
 运行后默认端口3000，可访问 `http://localhost:3000`。
+
+macOS 本地使用雨云 OSS、WebDAV 与 ReAPI 代理时，可在填写 `.env.rainyun.local` 后运行：
+
+```bash
+./scripts/local-rainyun.sh start
+```
+
+也可以直接双击仓库根目录的 `start-infinite-canvas.command`。
+
+完整配置及维护说明见 [雨云 OSS 同步](docs/content/docs/overview/rainyun-oss.zh-CN.mdx)。
 
 首次打开后进入右上角配置，填入自己的 OpenAI 兼容 `Base URL` 和 `API Key`。
 

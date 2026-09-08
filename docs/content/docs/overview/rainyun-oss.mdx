@@ -24,6 +24,34 @@ Use the API endpoint shown by Rainyun without appending the bucket name. `STORAG
 
 The container still listens on port `3000`. After deployment, `/healthz` should report `storageConfigured: true`.
 
+## One-command local startup on macOS
+
+Do not use `bun run dev` or Vite when the server-side gateway is needed. The development server only serves the frontend and treats `/api/webdav` as a page route, so WebDAV connection tests fail.
+
+Create the local secret file once:
+
+```bash
+cp scripts/rainyun.env.example .env.rainyun.local
+chmod 600 .env.rainyun.local
+```
+
+Fill `.env.rainyun.local`, then run:
+
+```bash
+./scripts/local-rainyun.sh start
+```
+
+The script builds the frontend, starts the production Node server with the WebDAV gateway, starts the local ReAPI proxy, and opens Settings in Chrome on macOS. Maintenance commands:
+
+You can also double-click `start-infinite-canvas.command` in Finder instead of entering the start command.
+
+```bash
+./scripts/local-rainyun.sh status
+./scripts/local-rainyun.sh stop
+```
+
+The secret file is excluded by `.gitignore`, and the script requires mode `600`. Process IDs and logs live in the equally ignored `.local-run/` directory.
+
 ## Frontend configuration
 
 Open Settings → WebDAV Sync and enter:
